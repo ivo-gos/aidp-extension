@@ -6,44 +6,67 @@
 </head>
 <body>
   <div class="header">
+    <img src="../icons/icon48.png" alt="Northr" class="header-logo">
     <h1>Northr</h1>
-    <span>Identity</span>
+    <span class="header-id">ID</span>
   </div>
 
-  <!-- Login State -->
+  <!-- Login -->
   <div id="login-view" style="display:none;">
     <div class="login-form">
       <input type="email" id="email" placeholder="Email">
       <input type="password" id="password" placeholder="Password">
       <button class="btn" id="login-btn">Sign In</button>
       <div class="error" id="login-error"></div>
-      <a href="https://identity.northr.ai/signup" target="_blank" class="link">Don\'t have an account? Sign up</a>
+      <div class="signup-cta">
+        <span class="signup-text">New to Northr?</span>
+        <a href="https://identity.northr.ai/signup" target="_blank" class="signup-link">Create an account</a>
+      </div>
     </div>
   </div>
 
-  <!-- Main View -->
+  <!-- Main -->
   <div id="main-view" style="display:none;">
 
-    <div id="blocks-grid" class="blocks-grid"></div>
-
-    <div id="edit-area" style="display:none;">
-      <div class="edit-header">
-        <span id="edit-title"></span>
-        <span class="edit-close" id="edit-close">&times;</span>
-      </div>
-      <textarea id="edit-textarea" class="edit-textarea" placeholder="Write about yourself..."></textarea>
-      <button class="btn" id="edit-save" style="width:100%;margin-top:6px;">Save</button>
+    <!-- Tabs -->
+    <div class="tabs">
+      <button class="tab active" id="tab-identity">Identity</button>
+      <button class="tab" id="tab-projects">Projects</button>
     </div>
 
+    <!-- Identity Tab -->
+    <div id="identity-panel">
+      <div id="blocks-grid" class="blocks-grid"></div>
+      <div id="edit-area" style="display:none;">
+        <div class="edit-header">
+          <span id="edit-title"></span>
+          <span class="edit-close" id="edit-close">&times;</span>
+        </div>
+        <textarea id="edit-textarea" class="edit-textarea" placeholder="Write about yourself..."></textarea>
+        <button class="btn" id="edit-save" style="width:100%;margin-top:6px;">Save</button>
+      </div>
+    </div>
+
+    <!-- Projects Tab -->
+    <div id="projects-panel" style="display:none;">
+      <div id="projects-tree"></div>
+      <div id="inject-controls" style="display:none;">
+        <div class="inject-row">
+          <label class="inject-label">Inject as</label>
+          <select id="inject-block-select" class="inject-select"></select>
+        </div>
+        <div class="inject-row">
+          <label class="inject-label">+ Project</label>
+          <select id="inject-project-select" class="inject-select">
+            <option value="">None</option>
+          </select>
+        </div>
+        <button class="btn" id="inject-context-btn" style="width:100%;margin-top:8px;">Inject &#8594;</button>
+      </div>
+    </div>
+
+    <!-- Shared footer -->
     <div class="sync-info" id="sync-info">Last synced: never</div>
-
-    <div class="mode-badge" id="mode-badge">
-      <span class="mode-icon">&#128274;</span>
-      <div>
-        <div class="mode-label">Local mode</div>
-        <div class="mode-desc">Your data stays on this device</div>
-      </div>
-    </div>
 
     <div style="display:flex;gap:8px;margin-top:8px;">
       <button class="btn btn-secondary" id="refresh-btn" style="flex:1;">&#8635; Refresh</button>
@@ -53,7 +76,7 @@
     <button class="btn btn-secondary" id="logout-btn" style="width:100%;margin-top:8px;">Sign Out</button>
   </div>
 
-  <!-- Loading State -->
+  <!-- Loading -->
   <div id="loading-view">
     <div style="text-align:center;padding:24px;color:#64748b;">Loading...</div>
   </div>

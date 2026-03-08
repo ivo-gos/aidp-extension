@@ -1,10 +1,9 @@
 // Content script for Gemini (gemini.google.com)
-import { createNorthrProfileMenu, log } from './shared'
+import { createNorthrProfileMenu, startSessionMonitoring, log } from './shared'
 
 function findEditor(): HTMLElement | null {
   return document.querySelector('.ql-editor[contenteditable="true"]') as HTMLElement
-    || document.querySelector('rich-textarea [contenteditable="true"]') as HTMLElement
-    || document.querySelector('[contenteditable="true"]') as HTMLElement
+    || document.querySelector('div[contenteditable="true"]') as HTMLElement
 }
 
 function init() {
@@ -12,6 +11,7 @@ function init() {
     const editor = findEditor()
     if (editor) {
       createNorthrProfileMenu(findEditor, 'gemini')
+      startSessionMonitoring('gemini')
       clearInterval(check)
     }
   }, 1000)

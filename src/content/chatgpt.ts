@@ -1,5 +1,5 @@
 // Content script for ChatGPT (chatgpt.com / chat.openai.com)
-import { createNorthrProfileMenu, log } from './shared'
+import { createNorthrProfileMenu, startSessionMonitoring, log } from './shared'
 
 function findEditor(): HTMLElement | null {
   return document.querySelector('#prompt-textarea') as HTMLElement
@@ -12,6 +12,7 @@ function init() {
     const editor = findEditor()
     if (editor) {
       createNorthrProfileMenu(findEditor, 'chatgpt')
+      startSessionMonitoring('chatgpt')
       clearInterval(check)
     }
   }, 1000)

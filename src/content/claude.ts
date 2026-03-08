@@ -1,11 +1,9 @@
 // Content script for Claude (claude.ai)
-import { createNorthrProfileMenu, log } from './shared'
+import { createNorthrProfileMenu, startSessionMonitoring, log } from './shared'
 
 function findEditor(): HTMLElement | null {
   return document.querySelector('div.ProseMirror[contenteditable="true"]') as HTMLElement
-    || document.querySelector('[contenteditable="true"].ProseMirror') as HTMLElement
-    || document.querySelector('fieldset [contenteditable="true"]') as HTMLElement
-    || document.querySelector('[contenteditable="true"]') as HTMLElement
+    || document.querySelector('div[contenteditable="true"]') as HTMLElement
 }
 
 function init() {
@@ -13,6 +11,7 @@ function init() {
     const editor = findEditor()
     if (editor) {
       createNorthrProfileMenu(findEditor, 'claude')
+      startSessionMonitoring('claude')
       clearInterval(check)
     }
   }, 1000)
