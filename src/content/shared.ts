@@ -946,15 +946,22 @@ async function loadMenu(platform: Platform, findEditorFn: () => HTMLElement | nu
   })
   menuEl.appendChild(grid)
 
-  // Save session button
-  if (countUserMessages() >= 2) {
-    const sr = el('div', 'display:flex;align-items:center;justify-content:center;gap:6px;padding:8px;border-radius:8px;background:rgba(255,255,255,0.04);cursor:pointer;transition:all 0.15s;margin-top:2px;')
-    sr.innerHTML = '<span style="display:flex;align-items:center;color:'+theme.muted+';">'+UI_ICONS.save+'</span><span style="font-size:11px;color:'+theme.muted+';">Save this session</span>'
-    sr.addEventListener('mouseenter', () => { sr.style.background = 'rgba(255,255,255,0.08)' })
-    sr.addEventListener('mouseleave', () => { sr.style.background = 'rgba(255,255,255,0.04)' })
-    sr.addEventListener('click', () => { closeMenu(); openSaveFlow(platform) })
-    menuEl.appendChild(sr)
-  }
+  // Save session button (always visible, Pro-gated on click)
+  const sr = el('div', 'display:flex;align-items:center;justify-content:center;gap:6px;padding:8px;border-radius:8px;background:rgba(255,255,255,0.04);cursor:pointer;transition:all 0.15s;margin-top:2px;')
+  sr.innerHTML = '<span style="display:flex;align-items:center;color:'+theme.muted+';">'+UI_ICONS.save+'</span><span style="font-size:11px;color:'+theme.muted+';">Save this session</span>'
+  sr.addEventListener('mouseenter', () => { sr.style.background = 'rgba(255,255,255,0.08)' })
+  sr.addEventListener('mouseleave', () => { sr.style.background = 'rgba(255,255,255,0.04)' })
+  sr.addEventListener('click', async () => {
+    if (countUserMessages() < 2) { showToast('Send at least 2 messages first.', theme); return }
+    const pro = await isProUser()
+    if (pro) {
+      closeMenu(); openSaveFlow(platform)
+    } else {
+      closeMenu()
+      window.open('https://identity.northr.ai/settings?upgrade=true', '_blank')
+    }
+  })
+  menuEl.appendChild(sr)
 
   // Identity extraction trigger (always visible)
   const ir = el('div', 'display:flex;align-items:center;justify-content:center;gap:6px;padding:8px;border-radius:8px;background:rgba(255,255,255,0.04);cursor:pointer;transition:all 0.15s;margin-top:2px;')
