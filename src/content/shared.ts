@@ -137,13 +137,17 @@ async function getLocal(keys: string[]): Promise<Record<string, any>> { return n
 
 async function getBlocks(): Promise<IdentityBlock[]> {
   const { identity_blocks } = await getLocal(['identity_blocks'])
-  try {
-    const token = await getAuthToken()
-    if (token) {
-      const b = await supaFetch('identity_blocks?order=sort_order&select=profile_key,label,emoji,content,sort_order,last_edited_at')
-      if (b && b.length > 0) { await chrome.storage.local.set({ identity_blocks: b, last_synced_at: Date.now() }); return b }
-    }
-  } catch {}
+  const pro = await isProUser()
+  // Pro users: sync from Supabase. Free users: local only.
+  if (pro) {
+    try {
+      const token = await getAuthToken()
+      if (token) {
+        const b = await supaFetch('identity_blocks?order=sort_order&select=profile_key,label,emoji,content,sort_order,last_edited_at')
+        if (b && b.length > 0) { await chrome.storage.local.set({ identity_blocks: b, last_synced_at: Date.now() }); return b }
+      }
+    } catch {}
+  }
   return (identity_blocks && identity_blocks.length > 0) ? identity_blocks : getDefaultBlocks()
 }
 
@@ -512,39 +516,53 @@ function buildIdentityReviewPanel(pan: HTMLElement, ov: HTMLElement, platform: P
     if (accepted.length === 0) { chrome.storage.local.set({ lastIdentityOffer: Date.now() }); closeOverlay(ov); return }
 
     saveBtn.textContent = 'Saving...'; (saveBtn as HTMLButtonElement).disabled = true
+    const pro = await isProUser()
+
+    // Update local blocks first (always)
+    const { identity_blocks: localBlocks = [] } = await getLocal(['identity_blocks'])
+    let currentLocalBlocks: IdentityBlock[] = localBlocks.length > 0 ? localBlocks : getDefaultBlocks()
 
     let savedCount = 0
     for (const mr of accepted) {
       let finalContent = blockEditors[mr.profileKey]?.value || mr.updatedContent
-      // Ensure clean paragraph spacing — no triple+ newlines, always double between sections
       finalContent = finalContent.replace(/\n{3,}/g, '\n\n').trim()
-      const res = await supaFetch('identity_blocks?profile_key=eq.' + mr.profileKey, {
-        method: 'PATCH',
-        body: JSON.stringify({ content: finalContent, last_edited_at: new Date().toISOString() })
-      })
-      if (res) savedCount++
+
+      // Update local storage
+      const localBlock = currentLocalBlocks.find(b => b.profile_key === mr.profileKey)
+      if (localBlock) { localBlock.content = finalContent; localBlock.last_edited_at = new Date().toISOString() }
+
+      // Pro users: also PATCH to Supabase
+      if (pro) {
+        const res = await supaFetch('identity_blocks?profile_key=eq.' + mr.profileKey, {
+          method: 'PATCH',
+          body: JSON.stringify({ content: finalContent, last_edited_at: new Date().toISOString() })
+        })
+        if (res) savedCount++
+      } else {
+        savedCount++
+      }
     }
 
-    // Regenerate Full Me by concatenating all 3 blocks
-    try {
-      const freshBlocks = await supaFetch('identity_blocks?profile_key=in.(business,personal,voice)&select=profile_key,content')
-      if (freshBlocks) {
-        const biz = freshBlocks.find((b: any) => b.profile_key === 'business')?.content || ''
-        const pers = freshBlocks.find((b: any) => b.profile_key === 'personal')?.content || ''
-        const voice = freshBlocks.find((b: any) => b.profile_key === 'voice')?.content || ''
-        const fullMe = '\u2500\u2500 Business \u2500\u2500\n' + biz + '\n\n\u2500\u2500 Personal \u2500\u2500\n' + pers + '\n\n\u2500\u2500 My Voice \u2500\u2500\n' + voice
+    // Regenerate Full Me locally
+    const biz = currentLocalBlocks.find(b => b.profile_key === 'business')?.content || ''
+    const pers = currentLocalBlocks.find(b => b.profile_key === 'personal')?.content || ''
+    const voice = currentLocalBlocks.find(b => b.profile_key === 'voice')?.content || ''
+    const fullMe = '\u2500\u2500 Business \u2500\u2500\n' + biz + '\n\n\u2500\u2500 Personal \u2500\u2500\n' + pers + '\n\n\u2500\u2500 My Voice \u2500\u2500\n' + voice
+    const fullBlock = currentLocalBlocks.find(b => b.profile_key === 'full')
+    if (fullBlock) { fullBlock.content = fullMe; fullBlock.last_edited_at = new Date().toISOString() }
+
+    // Save to local storage
+    await chrome.storage.local.set({ identity_blocks: currentLocalBlocks, last_synced_at: Date.now() })
+
+    // Pro users: also update Full Me in Supabase
+    if (pro) {
+      try {
         await supaFetch('identity_blocks?profile_key=eq.full', {
           method: 'PATCH',
           body: JSON.stringify({ content: fullMe, last_edited_at: new Date().toISOString() })
         })
-      }
-    } catch (e) { log('Full Me regen failed:', e) }
-
-    // Update local cache
-    try {
-      const updated = await supaFetch('identity_blocks?order=sort_order&select=profile_key,label,emoji,content,sort_order,last_edited_at')
-      if (updated) await chrome.storage.local.set({ identity_blocks: updated, last_synced_at: Date.now() })
-    } catch {}
+      } catch (e) { log('Full Me regen failed:', e) }
+    }
 
     // Record the offer timestamp
     chrome.storage.local.set({ lastIdentityOffer: Date.now() })

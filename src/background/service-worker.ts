@@ -11,8 +11,9 @@ chrome.alarms.create('refresh-identity', { periodInMinutes: 5 })
 
 chrome.alarms.onAlarm.addListener(async (alarm) => {
   if (alarm.name !== 'refresh-identity') return
-  const { sync_mode } = await chrome.storage.local.get('sync_mode')
-  if (sync_mode !== 'cloud') return
+  // Only sync for Pro users
+  const { subscriptionStatus } = await chrome.storage.local.get('subscriptionStatus')
+  if (!subscriptionStatus || (subscriptionStatus.status !== 'active' && subscriptionStatus.status !== 'trialing')) return
   try {
     const { data: { session } } = await supabase.auth.getSession()
     if (!session?.access_token) return

@@ -150,12 +150,19 @@ async function saveBlock() {
   const b = currentBlocks.find(x => x.profile_key === editingKey); if (!b) return
   const newContent = (document.getElementById('edit-textarea') as HTMLTextAreaElement).value
   b.content = newContent
+
+  // Always save to local storage
   await chrome.storage.local.set({ identity_blocks: currentBlocks })
-  const res = await apiPatch('identity_blocks?profile_key=eq.' + editingKey, {
-    content: newContent,
-    last_edited_at: new Date().toISOString()
-  })
-  if (!res) { console.error('[Northr] Failed to save block to database') }
+
+  // Pro users: also persist to Supabase
+  if (isPro) {
+    const res = await apiPatch('identity_blocks?profile_key=eq.' + editingKey, {
+      content: newContent,
+      last_edited_at: new Date().toISOString()
+    })
+    if (!res) { console.error('[Northr] Failed to save block to database') }
+  }
+
   renderGrid(); closeEditor()
   document.getElementById('sync-info')!.textContent = 'Last synced: just now'
 }
@@ -342,7 +349,18 @@ function showLoginView() {
     else {
       loginBtn.textContent = 'Syncing...'
       await chrome.storage.local.remove(['identity_facts', 'facts_by_profile', 'cached_profiles', 'identity_context'])
-      if (data.session?.access_token) { const b = await syncBlocks(data.session.access_token); if (!b.length) await chrome.storage.local.set({ identity_blocks: getDefaultBlocks(), last_synced_at: Date.now() }) }
+      // Check subscription before deciding sync strategy
+      const sub = await checkSubscription(true)
+      if (sub.isPro && data.session?.access_token) {
+        const b = await syncBlocks(data.session.access_token)
+        if (!b.length) await chrome.storage.local.set({ identity_blocks: getDefaultBlocks(), last_synced_at: Date.now() })
+      } else {
+        // Free user: ensure default blocks exist locally
+        const { identity_blocks } = await chrome.storage.local.get(['identity_blocks'])
+        if (!identity_blocks || identity_blocks.length === 0) {
+          await chrome.storage.local.set({ identity_blocks: getDefaultBlocks(), last_synced_at: Date.now() })
+        }
+      }
       window.location.reload()
     }
   })
@@ -365,16 +383,25 @@ async function showMainView(user: any) {
     tabProjects.style.display = 'none'
   }
 
-  // Sync blocks
+  // Sync blocks — Pro users sync from cloud, free users use local only
   const local = await chrome.storage.local.get(['identity_blocks', 'last_synced_at'])
-  try {
-    const { data: { session } } = await supabase.auth.getSession()
-    if (session?.access_token) {
-      await chrome.storage.local.remove(['identity_facts', 'facts_by_profile', 'cached_profiles', 'identity_context'])
-      const fresh = await syncBlocks(session.access_token)
-      currentBlocks = fresh.length > 0 ? fresh : (local.identity_blocks?.length > 0 ? local.identity_blocks : getDefaultBlocks())
-    } else { currentBlocks = local.identity_blocks?.length > 0 ? local.identity_blocks : getDefaultBlocks() }
-  } catch { currentBlocks = local.identity_blocks?.length > 0 ? local.identity_blocks : getDefaultBlocks() }
+  if (isPro) {
+    try {
+      const { data: { session } } = await supabase.auth.getSession()
+      if (session?.access_token) {
+        await chrome.storage.local.remove(['identity_facts', 'facts_by_profile', 'cached_profiles', 'identity_context'])
+        const fresh = await syncBlocks(session.access_token)
+        currentBlocks = fresh.length > 0 ? fresh : (local.identity_blocks?.length > 0 ? local.identity_blocks : getDefaultBlocks())
+      } else { currentBlocks = local.identity_blocks?.length > 0 ? local.identity_blocks : getDefaultBlocks() }
+    } catch { currentBlocks = local.identity_blocks?.length > 0 ? local.identity_blocks : getDefaultBlocks() }
+  } else {
+    // Free users: local only
+    currentBlocks = local.identity_blocks?.length > 0 ? local.identity_blocks : getDefaultBlocks()
+    // Ensure defaults are saved locally if first time
+    if (!local.identity_blocks || local.identity_blocks.length === 0) {
+      await chrome.storage.local.set({ identity_blocks: currentBlocks })
+    }
+  }
 
   renderGrid()
 
