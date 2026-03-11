@@ -311,7 +311,54 @@ function injectIdentityBanner(platform: Platform, isFirstTime: boolean) {
 
 // ═══════════════════ IDENTITY EXTRACTION FLOW ═══════════════════
 
+// ═══════════════════ EXTRACTION CONSENT ═══════════════════
+
+function showExtractionConsent(theme: Record<string, string>): Promise<boolean> {
+  return new Promise(resolve => {
+    const ov = document.createElement('div'); ov.id = 'northr-consent-overlay'
+    ov.style.cssText = 'position:fixed;inset:0;z-index:2147483647;background:rgba(0,0,0,0.5);backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px);display:flex;align-items:center;justify-content:center;font-family:-apple-system,BlinkMacSystemFont,Inter,sans-serif;transition:opacity 0.2s;opacity:0;'
+    document.body.appendChild(ov)
+    requestAnimationFrame(() => { ov.style.opacity = '1' })
+
+    const pan = document.createElement('div')
+    pan.style.cssText = 'background:rgba(26,26,26,0.95);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);color:#e2e8f0;border-radius:16px;padding:24px;width:400px;box-shadow:0 16px 48px rgba(0,0,0,0.5);border:1px solid rgba(255,255,255,0.08);'
+
+    pan.innerHTML = '<div style="margin-bottom:16px;"><div style="font-size:15px;font-weight:700;margin-bottom:8px;">Before we learn about you</div>' +
+      '<div style="font-size:12px;color:#999;line-height:1.6;">' +
+      'To detect identity signals, we analyze your conversation on our server using AI. ' +
+      'The result is stored <strong style="color:#e2e8f0;">only on your device</strong> \u2014 we don\'t keep your conversation text.' +
+      '</div></div>' +
+      '<div style="font-size:11px;color:#666;margin-bottom:16px;line-height:1.5;">' +
+      'You can skip this and build your identity manually in the popup instead.' +
+      '</div>' +
+      '<div style="display:flex;gap:8px;">' +
+      '<button id="northr-consent-yes" style="flex:1;background:rgba(255,255,255,0.9);color:#0f0f0f;border:none;border-radius:8px;padding:10px;font-size:13px;font-weight:600;cursor:pointer;">Continue</button>' +
+      '<button id="northr-consent-no" style="background:rgba(51,51,51,0.8);color:#999;border:none;border-radius:8px;padding:10px 16px;font-size:13px;cursor:pointer;">Not now</button>' +
+      '</div>'
+
+    ov.appendChild(pan)
+
+    document.getElementById('northr-consent-yes')!.addEventListener('click', () => {
+      ov.style.opacity = '0'; setTimeout(() => ov.remove(), 200); resolve(true)
+    })
+    document.getElementById('northr-consent-no')!.addEventListener('click', () => {
+      ov.style.opacity = '0'; setTimeout(() => ov.remove(), 200); resolve(false)
+    })
+  })
+}
+
+// ═══════════════════ IDENTITY EXTRACTION FLOW ═══════════════════
+
 async function openIdentityExtractionFlow(platform: Platform) {
+  // One-time consent check for server-side processing
+  const { extractionConsentGiven } = await getLocal(['extractionConsentGiven'])
+  if (!extractionConsentGiven) {
+    const theme = THEMES[platform]
+    const agreed = await showExtractionConsent(theme)
+    if (!agreed) return
+    await chrome.storage.local.set({ extractionConsentGiven: true })
+  }
+
   const ov = document.createElement('div'); ov.id = 'northr-overlay'
   ov.style.cssText = 'position:fixed;inset:0;z-index:2147483647;background:rgba(0,0,0,0.5);backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px);display:flex;align-items:center;justify-content:center;font-family:-apple-system,BlinkMacSystemFont,Inter,sans-serif;transition:opacity 0.2s;opacity:0;'
   document.body.appendChild(ov)

@@ -103,8 +103,19 @@ async function checkSubscription(forceRefresh = false): Promise<{ isPro: boolean
     // Fetch fresh
     const result = await apiEdgeFn('check-subscription', {})
     if (result) {
+      // Detect upgrade: was free, now Pro → migrate local blocks to cloud
+      const { subscriptionStatus: prevStatus } = await chrome.storage.local.get(['subscriptionStatus'])
+      const wasFree = !prevStatus || prevStatus.status === 'free'
+      const nowPro = result.status === 'active' || result.status === 'trialing'
+
       await chrome.storage.local.set({ subscriptionStatus: result, subscriptionCheckedAt: Date.now() })
-      if (result.status === 'active' || result.status === 'trialing') {
+
+      if (wasFree && nowPro) {
+        console.log('[Northr] Pro upgrade detected — migrating local blocks to cloud')
+        await migrateLocalBlocksToCloud()
+      }
+
+      if (nowPro) {
         return { isPro: true, plan: 'pro', status: result.status }
       }
     }
@@ -112,6 +123,21 @@ async function checkSubscription(forceRefresh = false): Promise<{ isPro: boolean
   } catch {
     return { isPro: false, plan: 'free', status: 'free' }
   }
+}
+
+// Migrate local-only blocks to Supabase when user upgrades to Pro
+async function migrateLocalBlocksToCloud() {
+  const { identity_blocks } = await chrome.storage.local.get(['identity_blocks'])
+  if (!identity_blocks || identity_blocks.length === 0) return
+  for (const block of identity_blocks) {
+    if (block.content && block.content.trim()) {
+      await apiPatch('identity_blocks?profile_key=eq.' + block.profile_key, {
+        content: block.content,
+        last_edited_at: new Date().toISOString()
+      })
+    }
+  }
+  console.log('[Northr] Local blocks migrated to cloud:', identity_blocks.length, 'blocks')
 }
 
 // ═══════════════════ STATE ═══════════════════
@@ -453,10 +479,17 @@ async function showMainView(user: any) {
   document.getElementById('dashboard-btn')!.addEventListener('click', () => { chrome.tabs.create({ url: APP_URL + '/dashboard' }) })
   document.getElementById('logout-btn')!.addEventListener('click', async () => { await supabase.auth.signOut(); await chrome.storage.local.clear(); window.location.reload() })
 
-  // Show Pro badge if subscribed
+  // Show Pro badge or local-only notice
   if (isPro) {
     const syncInfo = document.getElementById('sync-info')!
     syncInfo.innerHTML = '<span style="color:#eab308;font-size:10px;">Pro \u2728</span> \u00B7 ' + syncInfo.textContent
+  } else {
+    // Free users: show local-only notice if they have content
+    const totalWords = currentBlocks.filter(b => b.profile_key !== 'full').reduce((sum, b) => sum + wc(b.content), 0)
+    if (totalWords > 50) {
+      const syncInfo = document.getElementById('sync-info')!
+      syncInfo.innerHTML = '<span style="color:#f97316;font-size:9px;">Stored locally only \u2014 <a href="https://identity.northr.ai/settings?upgrade=true" target="_blank" style="color:#f97316;text-decoration:underline;">back up with Pro</a></span>'
+    }
   }
 }
 
