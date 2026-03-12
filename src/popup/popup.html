@@ -6,9 +6,8 @@
 </head>
 <body>
   <div class="header">
-    <img src="../icons/icon48.png" alt="Northr" class="header-logo">
     <h1>Northr</h1>
-    <span class="header-id">ID</span>
+    <span>Identity</span>
   </div>
 
   <!-- Login -->
@@ -18,10 +17,7 @@
       <input type="password" id="password" placeholder="Password">
       <button class="btn" id="login-btn">Sign In</button>
       <div class="error" id="login-error"></div>
-      <div class="signup-cta">
-        <span class="signup-text">New to Northr?</span>
-        <a href="https://identity.northr.ai/signup" target="_blank" class="signup-link">Create an account</a>
-      </div>
+      <a href="https://identity.northr.ai/signup" target="_blank" class="link">Don\'t have an account? Sign up</a>
     </div>
   </div>
 
@@ -37,6 +33,11 @@
     <!-- Identity Tab -->
     <div id="identity-panel">
       <div id="blocks-grid" class="blocks-grid"></div>
+      <div id="watermark-toggle" class="watermark-row">
+        <label class="watermark-label">
+          <input type="checkbox" id="watermark-check"> <span>Add "powered by northr.ai" to injections</span>
+        </label>
+      </div>
       <div id="edit-area" style="display:none;">
         <div class="edit-header">
           <span id="edit-title"></span>

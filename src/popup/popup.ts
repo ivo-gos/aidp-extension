@@ -445,6 +445,14 @@ async function showMainView(user: any) {
   document.getElementById('edit-save')!.addEventListener('click', saveBlock)
   document.getElementById('inject-context-btn')!.addEventListener('click', injectContext)
 
+  // Watermark toggle
+  const wmCheck = document.getElementById('watermark-check') as HTMLInputElement
+  const { northrWatermark } = await chrome.storage.local.get(['northrWatermark'])
+  wmCheck.checked = !!northrWatermark
+  wmCheck.addEventListener('change', () => {
+    chrome.storage.local.set({ northrWatermark: wmCheck.checked })
+  })
+
   document.getElementById('inject-project-select')!.addEventListener('change', (e) => {
     selectedProjectId = (e.target as HTMLSelectElement).value || null
   })

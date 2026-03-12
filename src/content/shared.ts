@@ -202,6 +202,22 @@ function showToast(msg: string, theme: Record<string, string>) {
   setTimeout(() => { t.style.opacity = '0'; setTimeout(() => t.remove(), 300) }, 3000)
 }
 
+function showReviewPrompt(theme: Record<string, string>) {
+  const e = document.getElementById('northr-review'); if (e) e.remove()
+  const r = document.createElement('div'); r.id = 'northr-review'
+  r.style.cssText = 'position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:'+theme.bg+';color:'+theme.text+';padding:14px 20px;border-radius:12px;font-size:13px;font-family:-apple-system,BlinkMacSystemFont,Inter,sans-serif;z-index:2147483647;box-shadow:0 4px 20px rgba(0,0,0,0.4);border:1px solid '+theme.border+';transition:opacity 0.3s;opacity:0;backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);display:flex;flex-direction:column;gap:10px;max-width:340px;'
+  r.innerHTML = '<div style="font-size:12px;color:'+theme.muted+';line-height:1.5;">Northr just saved you from explaining yourself again. Mind leaving a quick review?</div>' +
+    '<div style="display:flex;gap:8px;">' +
+    '<a id="northr-review-yes" href="https://chromewebstore.google.com/detail/northr-identity/mimlnbciccoajmoendcpbgmjhnngooje/reviews" target="_blank" style="flex:1;background:rgba(255,255,255,0.9);color:#0f0f0f;border:none;border-radius:8px;padding:8px;font-size:12px;font-weight:600;cursor:pointer;text-align:center;text-decoration:none;display:block;">Leave a review</a>' +
+    '<button id="northr-review-no" style="background:rgba(51,51,51,0.8);color:#999;border:none;border-radius:8px;padding:8px 12px;font-size:12px;cursor:pointer;">Later</button>' +
+    '</div>'
+  document.body.appendChild(r)
+  requestAnimationFrame(() => { r.style.opacity = '1' })
+  document.getElementById('northr-review-no')!.addEventListener('click', () => { r.style.opacity = '0'; setTimeout(() => r.remove(), 300) })
+  document.getElementById('northr-review-yes')!.addEventListener('click', () => { r.style.opacity = '0'; setTimeout(() => r.remove(), 300) })
+  setTimeout(() => { if (document.getElementById('northr-review')) { r.style.opacity = '0'; setTimeout(() => r.remove(), 300) } }, 15000)
+}
+
 // ═══════════════════ CONVERSATION EXTRACTION ═══════════════════
 
 export function detectPlatform(): Platform | 'other' {
@@ -985,17 +1001,41 @@ async function loadMenu(platform: Platform, findEditorFn: () => HTMLElement | nu
   hdr.innerHTML = '<span style="font-weight:600;font-size:12px;color:'+theme.muted+';">Northr Identity</span><span style="font-size:10px;color:rgba(255,255,255,0.2);">'+(isMac?'\u2318':'Ctrl+')+'I</span>'
   menuEl.appendChild(hdr)
 
+  // First-time shortcut hint — show once, then never again
+  const { shortcutHintShown } = await getLocal(['shortcutHintShown'])
+  if (!shortcutHintShown) {
+    const hint = el('div', 'background:rgba(255,255,255,0.04);border-radius:8px;padding:8px 10px;margin-bottom:4px;font-size:10px;color:'+theme.muted+';line-height:1.5;')
+    hint.innerHTML = 'Tip: Press <strong style="color:'+theme.text+';">1-4</strong> to inject a block instantly. <span id="northr-hint-dismiss" style="cursor:pointer;color:'+theme.muted+';float:right;">Got it</span>'
+    menuEl.appendChild(hint)
+    document.addEventListener('click', function dismissHint(e: any) {
+      if (e.target?.id === 'northr-hint-dismiss') { hint.remove(); chrome.storage.local.set({ shortcutHintShown: true }); document.removeEventListener('click', dismissHint) }
+    })
+  }
+
   // Grid — one-click inject
   const grid = el('div', 'display:grid;grid-template-columns:1fr 1fr;gap:6px;')
 
   async function inject(block: IdentityBlock) {
     const editor = findEditorFn(); if (!editor) { showToast('Editor not found.', theme); return }
-    setEditorContent(editor, fmtBlock(block) + getEditorContent(editor))
-    closeMenu(); showToast(block.label + ' injected \u2014 ' + wc(block.content) + 'w', theme)
+    let injectedText = fmtBlock(block)
+    // Check if watermark is enabled
+    const { northrWatermark } = await getLocal(['northrWatermark'])
+    if (northrWatermark) { injectedText += '[Context powered by northr.ai]\n\n' }
+    setEditorContent(editor, injectedText + getEditorContent(editor))
+    closeMenu(); showToast(block.label + ' injected - ' + wc(block.content) + 'w', theme)
     if (dotEl) {
       dotEl.style.border = '1px solid #10b981'; dotEl.style.opacity = '1'
       dotEl.innerHTML = '<svg width="12" height="12" viewBox="0 0 12 12" fill="none"><text x="1" y="10" font-size="11" font-weight="700" font-family="system-ui" fill="#10b981">\u2713</text></svg>'
       setTimeout(() => resetDot(platform), 4000)
+    }
+
+    // Track injections and prompt for review after 3
+    const { northrInjectionCount = 0, reviewPromptShown } = await getLocal(['northrInjectionCount', 'reviewPromptShown'])
+    const newCount = northrInjectionCount + 1
+    await chrome.storage.local.set({ northrInjectionCount: newCount })
+    if (newCount === 3 && !reviewPromptShown) {
+      await chrome.storage.local.set({ reviewPromptShown: true })
+      setTimeout(() => showReviewPrompt(theme), 2000)
     }
   }
 
